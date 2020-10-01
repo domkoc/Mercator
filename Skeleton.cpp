@@ -301,15 +301,14 @@ public:
 class OSpline : public Curve {
     std::vector<float> ts; //knots
 
-    vec2 Hermite(vec2 p0, vec2 v0, float t0, vec2 p1, vec2 v1, float t1, float t) {
-        float deltat = t1 - t0;
+    vec2 S(vec2 p0, vec2 v0, float t0, vec2 p1, vec2 v1, float t1, float t) {
         t = t - t0;
-        float deltat2 = deltat * deltat;
-        float deltat3 = deltat * deltat2;
-        vec2 a0 = p0, a1 = v0;
-        vec2 a2 = (p1 - p0) * 3 / deltat2 - (v1 + v0 * 2) / deltat;
-        vec2 a3 = (p0 - p1) * 2 / deltat3 + (v1 + v0) / deltat;
-        return ((a3 * t + a2) * t + a1) * t + a0;
+
+        vec2 a = p0;
+        vec2 b = v0;
+        vec2 c = (v1 - v0) / (2*(t1-t0));
+
+        return (a * t + b) * t + c;
     }
 
 public:
@@ -325,8 +324,8 @@ public:
         return ts[wCtrlPoints.size() - 1];
     }
 
+    //TODO: r(t)
     vec2 r(float t) {
-        vec2 wPoint(0, 0);
         for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
             if (ts[i] <= t && t <= ts[i + 1]) {
                 vec2 vPrev = (i > 0)? (wCtrlPoints[i] - wCtrlPoints[i - 1]) * (1.0f /(ts[i] - ts[i - 1])) : vec2(0, 0); // nem jó :-tól
@@ -334,7 +333,7 @@ public:
                 vec2 vNext = (i < wCtrlPoints.size() - 2)? (wCtrlPoints[i + 2] - wCtrlPoints[i + 1]) / (ts[i + 2] - ts[i + 1]) : vec2(0, 0); //nem jó ts[i + 2]-től
                 vec2 v0 = (vPrev + vCur) * 0.5f;
                 vec2 v1 = (vCur + vNext) * 0.5f;
-                return Hermite(wCtrlPoints[i], v0, ts[i], wCtrlPoints[i + i], v1, ts[i + 1], t);
+                return S(wCtrlPoints[i], v0, ts[i], wCtrlPoints[i + i], v1, ts[i + 1], t);
             }
         }
         return wCtrlPoints[0];
