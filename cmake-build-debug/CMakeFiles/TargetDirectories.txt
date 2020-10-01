@@ -1,0 +1,3 @@
+/Users/dominik/Documents/Grafika/New/HF1/Mercator/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/dominik/Documents/Grafika/New/HF1/Mercator/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/dominik/Documents/Grafika/New/HF1/Mercator/cmake-build-debug/CMakeFiles/GrafTemplateProject.dir

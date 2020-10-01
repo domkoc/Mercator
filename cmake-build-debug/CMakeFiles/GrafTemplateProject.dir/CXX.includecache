@@ -1,0 +1,34 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/dominik/Documents/Grafika/New/HF1/Mercator/Skeleton.cpp
+framework.h
+/Users/dominik/Documents/Grafika/New/HF1/Mercator/framework.h
+
+/Users/dominik/Documents/Grafika/New/HF1/Mercator/framework.h
+stdio.h
+-
+stdlib.h
+-
+math.h
+-
+vector
+-
+string
+-
+GLUT/GLUT.h
+-
+OpenGL/gl3.h
+-
+windows.h
+-
+GL/glew.h
+-
+GL/freeglut.h
+-
+

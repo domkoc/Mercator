@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/c++  -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/GrafTemplateProject.dir/framework.cpp.o CMakeFiles/GrafTemplateProject.dir/Skeleton.cpp.o  -o GrafTemplateProject  -framework OpenGL -framework OpenGL -framework GLUT -framework Cocoa 
