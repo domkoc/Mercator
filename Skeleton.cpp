@@ -36,7 +36,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 // vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
-const char * const vertexSource = R"(
+const char *const vertexSource = R"(
 	#version 330				// Shader 3.3
 	precision highp float;		// normal floats, makes no difference on desktop computers
 
@@ -49,7 +49,7 @@ const char * const vertexSource = R"(
 )";
 
 // fragment shader in GLSL
-const char * const fragmentSource = R"(
+const char *const fragmentSource = R"(
 	#version 330			// Shader 3.3
 	precision highp float;	// normal floats, makes no difference on desktop computers
 
@@ -61,6 +61,19 @@ const char * const fragmentSource = R"(
 	}
 )";
 
+std::vector<vec2> ctrlPtsEurazsia = {
+        vec2(36, 0), vec2(42, 0), vec2(47, -3),
+        vec2(61, 6), vec2(70, 28), vec2(65, 44),
+        vec2(76, 113), vec2(60, 160), vec2(7, 105),
+        vec2(19, 90), vec2(4, 80), vec2(42, 13)
+};
+
+std::vector<vec2> ctrlPtsAfrika = {
+        vec2(33, -5), vec2(17, -16), vec2(3, 6),
+        vec2(-35, 19), vec2(-3, 40), vec2(10, 53),
+        vec2(30, 33)
+};
+
 //2D Camera
 class Camera2D {
     vec2 wCenter; //Center in world coordinates
@@ -71,6 +84,7 @@ public:
     mat4 V() {
         return TranslateMatrix(-wCenter);
     }
+
     mat4 P() {
         return ScaleMatrix(vec2(2 / wSize.x, 2 / wSize.y));
     }
@@ -78,6 +92,7 @@ public:
     mat4 Vinv() {
         return TranslateMatrix(wCenter);
     }
+
     mat4 Pinv() {
         return ScaleMatrix(vec2(wSize.x / 2, wSize.y / 2));
     }
@@ -85,6 +100,7 @@ public:
     void Zoom(float s) {
         wSize = wSize * s;
     }
+
     void Pan(vec2 t) {
         wCenter = wCenter + t;
     }
@@ -95,16 +111,24 @@ public:
 Camera2D camera;
 GPUProgram gpuProgram; // vertex and fragment shaders
 
-const int nTesselatedVertices = 100; //görbe aproximálása
+const int nTesselatedVertices = 1000; //görbe aproximálása
 
 class Curve {
 
 protected:
     std::vector<vec2> wCtrlPoints; //coordinates of control points
+    std::vector<float> ts; //knots
 public:
     unsigned int vaoVectorisedCurve, vboVectorisedCurve;
     unsigned int vaoCtrlPoints, vboCtrlPoints;
+
     Curve() {
+        //Eurazsia:
+        for (int i = 0; i < ctrlPtsEurazsia.size(); ++i) {
+            wCtrlPoints.push_back(vec2((ctrlPtsEurazsia[i].y-70)/9, ctrlPtsEurazsia[i].x/8.5));
+            ts.push_back((float) wCtrlPoints.size());
+        }
+
         //Curve:
         glGenVertexArrays(1, &vaoVectorisedCurve);
         glBindVertexArray(vaoVectorisedCurve);
@@ -136,7 +160,9 @@ public:
     }
 
     virtual vec2 r(float t) = 0;
+
     virtual float tStart() = 0;
+
     virtual float tEnd() = 0;
 
     virtual void AddControlPoint(float cX, float cY) {
@@ -177,7 +203,7 @@ public:
         if (wCtrlPoints.size() > 2) {
             std::vector<vec2> vertexData;
             for (int i = 0; i < nTesselatedVertices; ++i) { //tesselate
-                float tNormalized = (float)i /(nTesselatedVertices - 1);
+                float tNormalized = (float) i / (nTesselatedVertices - 1);
                 float t = tStart() + (tEnd() - tStart()) * tNormalized;
                 vec2 wVertex = r(t);
                 vertexData.push_back(wVertex);
@@ -199,13 +225,14 @@ class BezierCurve : public Curve {
         int n = wCtrlPoints.size() - 1; //n deg polynomial = n+1 pts!
         float choose = 1;
         for (int j = 1; j < i; j++) {
-            choose = choose * (float)(n - j + 1) / j;
+            choose = choose * (float) (n - j + 1) / j;
         }
         return choose * pow(t, i) * pow(1 - t, n - i);
     }
 
 public:
     float tStart() { return 0; };
+
     float tEnd() { return 1; };
 
     virtual vec2 r(float t) {
@@ -219,7 +246,6 @@ public:
 
 //Lagrange curve
 class LagrangeCurve : public Curve {
-    std::vector<float> ts; //knots
 
     float L(int i, float t) {
         float Li = 1.0f;
@@ -233,12 +259,14 @@ class LagrangeCurve : public Curve {
 
 public:
     void AddControlPoint(float cX, float cY) {
-        ts.push_back((float)wCtrlPoints.size());
+        ts.push_back((float) wCtrlPoints.size());
         Curve::AddControlPoint(cX, cY);
     }
+
     float tStart() {
         return ts[0];
     }
+
     float tEnd() {
         return ts[wCtrlPoints.size() - 1];
     }
@@ -254,7 +282,6 @@ public:
 
 //CatmullRomSpline
 class CatmullRomSpline : public Curve {
-    std::vector<float> ts; //knots
 
     vec2 Hermite(vec2 p0, vec2 v0, float t0, vec2 p1, vec2 v1, float t1, float t) {
         float deltat = t1 - t0;
@@ -269,13 +296,14 @@ class CatmullRomSpline : public Curve {
 
 public:
     void AddControlPoint(float cX, float cY) {
-        ts.push_back((float)wCtrlPoints.size());
+        ts.push_back((float) wCtrlPoints.size());
         Curve::AddControlPoint(cX, cY);
     }
 
     float tStart() {
         return ts[0];
     }
+
     float tEnd() {
         return ts[wCtrlPoints.size() - 1];
     }
@@ -284,12 +312,14 @@ public:
         vec2 wPoint(0, 0);
         for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
             if (ts[i] <= t && t <= ts[i + 1]) {
-                vec2 vPrev = (i > 0)? (wCtrlPoints[i] - wCtrlPoints[i - 1]) * (1.0f /(ts[i] - ts[i - 1])) : vec2(0, 0); // nem jó :-tól
+                vec2 vPrev = (i > 0) ? (wCtrlPoints[i] - wCtrlPoints[i - 1]) * (1.0f / (ts[i] - ts[i - 1])) : vec2(0,
+                                                                                                                   0); // nem jó :-tól
                 vec2 vCur = (wCtrlPoints[i + 1] - wCtrlPoints[i]) / (ts[i + 1] - ts[i]);
-                vec2 vNext = (i < wCtrlPoints.size() - 2)? (wCtrlPoints[i + 2] - wCtrlPoints[i + 1]) / (ts[i + 2] - ts[i + 1]) : vec2(0, 0); //nem jó ts[i + 2]-től
+                vec2 vNext = (i < wCtrlPoints.size() - 2) ? (wCtrlPoints[i + 2] - wCtrlPoints[i + 1]) /
+                                                            (ts[i + 2] - ts[i + 1]) : vec2(0, 0); //nem jó ts[i + 2]-től
                 vec2 v0 = (vPrev + vCur) * 0.5f;
                 vec2 v1 = (vCur + vNext) * 0.5f;
-                return Hermite(wCtrlPoints[i], v0, ts[i], wCtrlPoints[i + i], v1, ts[i + 1], t);
+                return Hermite(wCtrlPoints[i], v0, ts[i], wCtrlPoints[i + 1], v1, ts[i + 1], t);
             }
         }
         return wCtrlPoints[0];
@@ -299,41 +329,48 @@ public:
 
 //TODO: O-spline
 class OSpline : public Curve {
-    std::vector<float> ts; //knots
 
-    vec2 S(vec2 p0, vec2 v0, float t0, vec2 p1, vec2 v1, float t1, float t) {
-        t = t - t0;
+    vec2 S(vec2 p_1, vec2 p0, vec2 p1, float t_1, float t0, float t1, float t) {
 
-        vec2 a = p0;
-        vec2 b = v0;
-        vec2 c = (v1 - v0) / (2*(t1-t0));
+        //A = [(Y2-Y1)(X1-X3) + (Y3-Y1)(X2-X1)]/[(X1-X3)(X2^2-X1^2) + (X2-X1)(X3^2-X1^2)]
+        vec2 a = ((p0 - p_1) * ((t_1 - t0) - (t1 - t0)) + (p1 - p_1) * ((t0 - t0) - (t_1 - t0))) *
+                 (1.0f / (((t_1 - t0) - (t1 - t0)) * (((t0 - t0) * (t0 - t0)) - ((t_1 - t0) * (t_1 - t0))) +
+                          ((t0 - t0) - (t_1 - t0)) * (((t1 - t0) * (t1 - t0)) - ((t_1 - t0) * (t_1 - t0)))));
 
-        return (a * t + b) * t + c;
+        //B = [(Y2 - Y1) - A(X2^2 - X1^2)] / (X2-X1)
+        vec2 b = ((p0 - p_1) - a * (((t0 - t0) * (t0 - t0)) - ((t_1 - t0) * (t_1 - t0)))) * (1.0f / ((t0 - t0) - (t_1 - t0)));
+
+        //C = Y1 - AX1^2 - BX1
+        vec2 c = p_1 - a * ((t_1 - t0) * (t_1 - t0)) - b * (t_1 - t0);
+
+
+        return (a * (t - t0) + b) * (t - t0) + c;
     }
 
 public:
     void AddControlPoint(float cX, float cY) {
-        ts.push_back((float)wCtrlPoints.size());
+        ts.push_back((float) wCtrlPoints.size());
         Curve::AddControlPoint(cX, cY);
     }
 
     float tStart() {
         return ts[0];
     }
+
     float tEnd() {
         return ts[wCtrlPoints.size() - 1];
     }
 
     //TODO: r(t)
     vec2 r(float t) {
-        for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
+        for (int i = 1; i < wCtrlPoints.size() - 2; i++) {
             if (ts[i] <= t && t <= ts[i + 1]) {
-                vec2 vPrev = (i > 0)? (wCtrlPoints[i] - wCtrlPoints[i - 1]) * (1.0f /(ts[i] - ts[i - 1])) : vec2(0, 0); // nem jó :-tól
-                vec2 vCur = (wCtrlPoints[i + 1] - wCtrlPoints[i]) / (ts[i + 1] - ts[i]);
-                vec2 vNext = (i < wCtrlPoints.size() - 2)? (wCtrlPoints[i + 2] - wCtrlPoints[i + 1]) / (ts[i + 2] - ts[i + 1]) : vec2(0, 0); //nem jó ts[i + 2]-től
-                vec2 v0 = (vPrev + vCur) * 0.5f;
-                vec2 v1 = (vCur + vNext) * 0.5f;
-                return S(wCtrlPoints[i], v0, ts[i], wCtrlPoints[i + i], v1, ts[i + 1], t);
+                //𝒓𝑡 =(𝒔𝑖 𝑡(𝑡𝑖+1−𝑡)+𝒔𝑖+1 𝑡(𝑡−𝑡𝑖))/(𝑡𝑖+1−𝑡𝑖)
+                vec2 s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[i - 1], ts[i], ts[i + 1], t);
+                vec2 s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[i + 2], ts[i], ts[i + 1], ts[i + 2], t);
+
+                vec2 raaa = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
+                return raaa;
             }
         }
         return wCtrlPoints[0];
@@ -341,9 +378,8 @@ public:
 };
 
 
-
 //the virtual world: one object
-Curve * curve;
+Curve *curve;
 
 //popup menu event handler
 void processMenuEvents(int option) {
@@ -380,7 +416,7 @@ void onInitialization() {
 
     glViewport(0, 0, windowWidth, windowHeight);
     glLineWidth(2.0f);
-    curve = new LagrangeCurve(); //TODO: set starting curve
+    curve = new OSpline(); //TODO: set starting curve
 
     //create program for the GPU
     gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -406,9 +442,10 @@ void onKeyboardUp(unsigned char key, int pX, int pY) {
 int pickedControlPoint = -1;
 
 // Mouse click event
-void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
+void onMouse(int button, int state, int pX,
+             int pY) { // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
     // Convert to normalized device space
-    float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
+    float cX = 2.0f * pX / windowWidth - 1;    // flip y axis
     float cY = 1.0f - 2.0f * pY / windowHeight;
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
         curve->AddControlPoint(cX, cY);
@@ -424,9 +461,10 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 }
 
 // Move mouse with key pressed
-void onMouseMotion(int pX, int pY) {	// pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
+void onMouseMotion(int pX,
+                   int pY) {    // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
     // Convert to normalized device space
-    float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
+    float cX = 2.0f * pX / windowWidth - 1;    // flip y axis
     float cY = 1.0f - 2.0f * pY / windowHeight;
     if (pickedControlPoint >= 0) {
         curve->MoveControlPoint(pickedControlPoint, cX, cY);
