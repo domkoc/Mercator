@@ -61,6 +61,22 @@ const char *const fragmentSource = R"(
 	}
 )";
 
+float degToRad(float deg){
+    return deg * M_PI / 180;
+}
+
+vec2 degToRad(vec2 degVec){
+    return vec2(degToRad(degVec.x), degToRad(degVec.y));
+}
+
+std::vector<vec2> degToRad(std::vector<vec2> degVector){
+    std::vector<vec2> radVector;
+    for (int i = 0; i < degVector.size(); ++i) {
+        radVector.push_back(degToRad(degVector[i]));
+    }
+    return radVector;
+}
+
 std::vector<vec2> ctrlPtsEurazsia = {
         vec2(36, 0), vec2(42, 0), vec2(47, -3),
         vec2(61, 6), vec2(70, 28), vec2(65, 44),
@@ -73,6 +89,21 @@ std::vector<vec2> ctrlPtsAfrika = {
         vec2(-35, 19), vec2(-3, 40), vec2(10, 53),
         vec2(30, 33)
 };
+
+struct mercatorParameters{
+    float xRadMax = degToRad(160);
+    float xRadMin = degToRad(-20);
+    float yRadMax = degToRad(85);
+    float yRadMin = degToRad(-85);
+
+    float xMax = xRadMax;
+    float xMin = xRadMin;
+    float yMax = logf(tanf((M_PI/4)+(yRadMax/2)));
+    float yMin = logf(tanf((M_PI/4)+(yRadMin/2)));
+
+    float xScale = 10.0f / xMax;//xMin - (((abs(xMin) + abs(xMax)) / 2.0f) - abs(xMin));
+    float yScale = 10.0f / yMax;
+}mercatorParameters;
 
 bool isMercator = true;
 
@@ -106,7 +137,6 @@ public:
     void Pan(vec2 t) {
         wCenter = wCenter + t;
     }
-
 };
 
 
@@ -185,6 +215,7 @@ public:
         //draw curve:
         if (wCtrlPoints.size() > 2) {
             std::vector<vec2> vertexData;
+            bool first = true;
             for (int i = 0; i < nTesselatedVertices; ++i) { //tesselate
                 float tNormalized = (float) i / (nTesselatedVertices - 1);
                 float t = tStart() + (tEnd() - tStart()) * tNormalized;
@@ -226,11 +257,39 @@ public:
     OSpline(std::vector<vec2> newCtrlPoints, vec3 newCurveColor) {
         curveColor = newCurveColor;
 
-        //Eurazsia:
+        //Kontinens:
         for (int i = 0; i < newCtrlPoints.size(); ++i) {
-            wCtrlPoints.push_back(vec2((newCtrlPoints[i].y-70)/9, newCtrlPoints[i].x/8.5));
+            float x = newCtrlPoints[i].y;
+            x = degToRad(x);
+            float y = newCtrlPoints[i].x;
+            y = degToRad(y);
+
+            //uj:
+            y *= degToRad(90)/degToRad(85);
+            x -= degToRad(70);
+            x *= 2;
+
+            x = x;
+            y = logf(tanf((M_PI/4)+(y/2)));
+
+            float Ymax = logf(tanf((M_PI/4)+(degToRad(85)/2)));
+            float Xmax = degToRad(180);
+
+            x *= 10 / Xmax;
+            y *= 10 / Ymax;
+
+            wCtrlPoints.push_back(vec2(x, y));
             ts.push_back((float) wCtrlPoints.size());
         }
+        // TODO: plusz vonal
+        wCtrlPoints.insert(wCtrlPoints.begin(), wCtrlPoints[wCtrlPoints.size()-1]);
+        ts.push_back((float) wCtrlPoints.size());
+        wCtrlPoints.push_back(wCtrlPoints[1]);
+        ts.push_back((float) wCtrlPoints.size());
+        wCtrlPoints.push_back(wCtrlPoints[2]);
+        ts.push_back((float) wCtrlPoints.size());
+
+
         //Curve:
         glGenVertexArrays(1, &vaoVectorisedCurve);
         glBindVertexArray(vaoVectorisedCurve);
@@ -291,8 +350,8 @@ void onInitialization() {
 
     glViewport(0, 0, windowWidth, windowHeight);
     glLineWidth(2.0f);
-    eurazsiaSpline = new OSpline(ctrlPtsEurazsia, vec3(0, 0, 255));
-    afrikaSpline = new OSpline(ctrlPtsAfrika, vec3(0, 255, 0));
+    eurazsiaSpline = new OSpline(ctrlPtsEurazsia, vec3(0, 255, 0));
+    afrikaSpline = new OSpline(ctrlPtsAfrika, vec3(255, 255, 0));
 
     //create program for the GPU
     gpuProgram.create(vertexSource, fragmentSource, "outColor");
