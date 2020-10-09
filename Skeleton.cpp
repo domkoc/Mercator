@@ -61,15 +61,17 @@ const char *const fragmentSource = R"(
 	}
 )";
 
-float degToRad(float deg){
+unsigned int R = 6371;
+
+float degToRad(float deg) {
     return deg * M_PI / 180;
 }
 
-vec2 degToRad(vec2 degVec){
+vec2 degToRad(vec2 degVec) {
     return vec2(degToRad(degVec.x), degToRad(degVec.y));
 }
 
-std::vector<vec2> degToRad(std::vector<vec2> degVector){
+std::vector<vec2> degToRad(std::vector<vec2> degVector) {
     std::vector<vec2> radVector;
     for (int i = 0; i < degVector.size(); ++i) {
         radVector.push_back(degToRad(degVector[i]));
@@ -77,20 +79,51 @@ std::vector<vec2> degToRad(std::vector<vec2> degVector){
     return radVector;
 }
 
-std::vector<vec2> ctrlPtsEurazsia = {
-        vec2(36, 0), vec2(42, 0), vec2(47, -3),
-        vec2(61, 6), vec2(70, 28), vec2(65, 44),
-        vec2(76, 113), vec2(60, 160), vec2(7, 105),
-        vec2(19, 90), vec2(4, 80), vec2(42, 13)
-};
+bool isMercator = true;
 
-std::vector<vec2> ctrlPtsAfrika = {
-        vec2(33, -5), vec2(17, -16), vec2(3, 6),
-        vec2(-35, 19), vec2(-3, 40), vec2(10, 53),
-        vec2(30, 33)
-};
+std::vector<vec2> toMercator(std::vector<vec2> szelessegEsHosszusag) {
+    std::vector<vec2> transformedCoordinates = std::vector<vec2>();
+    //Kontinens:
+    for (int i = 0; i < szelessegEsHosszusag.size(); ++i) {
+        float x = szelessegEsHosszusag[i].y;
+        float y = szelessegEsHosszusag[i].x;
 
-struct mercatorParameters{
+        //uj:
+        y *= degToRad(90) / degToRad(85);
+        x -= degToRad(70);
+        x *= 2;
+
+        x = x;
+        y = logf(tanf((M_PI / 4) + (y / 2)));
+
+        float Ymax = logf(tanf((M_PI / 4) + (degToRad(85) / 2)));
+        float Xmax = degToRad(180);
+
+        x *= 10 / Xmax;
+        y *= 10 / Ymax;
+
+        transformedCoordinates.push_back(vec2(x, y));
+    }
+    return transformedCoordinates;
+}
+
+std::vector<vec2> toGlobe(std::vector<vec2> szelessegEsHosszusag) {
+    return szelessegEsHosszusag;
+}
+
+std::vector<vec2> ctrlPtsEurazsia = degToRad({
+                                                     vec2(36, 0), vec2(42, 0), vec2(47, -3),
+                                                     vec2(61, 6), vec2(70, 28), vec2(65, 44),
+                                                     vec2(76, 113), vec2(60, 160), vec2(7, 105),
+                                                     vec2(19, 90), vec2(4, 80), vec2(42, 13)});
+
+std::vector<vec2> ctrlPtsAfrika = degToRad({
+                                                   vec2(33, -5), vec2(17, -16), vec2(3, 6),
+                                                   vec2(-35, 19), vec2(-3, 40), vec2(10, 53),
+                                                   vec2(30, 33)
+                                           });
+
+struct mercatorParameters {
     float xRadMax = degToRad(160);
     float xRadMin = degToRad(-20);
     float yRadMax = degToRad(85);
@@ -98,14 +131,12 @@ struct mercatorParameters{
 
     float xMax = xRadMax;
     float xMin = xRadMin;
-    float yMax = logf(tanf((M_PI/4)+(yRadMax/2)));
-    float yMin = logf(tanf((M_PI/4)+(yRadMin/2)));
+    float yMax = logf(tanf((M_PI / 4) + (yRadMax / 2)));
+    float yMin = logf(tanf((M_PI / 4) + (yRadMin / 2)));
 
     float xScale = 10.0f / xMax;//xMin - (((abs(xMin) + abs(xMax)) / 2.0f) - abs(xMin));
     float yScale = 10.0f / yMax;
-}mercatorParameters;
-
-bool isMercator = true;
+} mercatorParameters;
 
 //2D Camera
 class Camera2D {
@@ -244,7 +275,8 @@ class OSpline : public Curve {
                           ((t0 - t0) - (t_1 - t0)) * (((t1 - t0) * (t1 - t0)) - ((t_1 - t0) * (t_1 - t0)))));
 
         //B = [(Y2 - Y1) - A(X2^2 - X1^2)] / (X2-X1)
-        vec2 b = ((p0 - p_1) - a * (((t0 - t0) * (t0 - t0)) - ((t_1 - t0) * (t_1 - t0)))) * (1.0f / ((t0 - t0) - (t_1 - t0)));
+        vec2 b = ((p0 - p_1) - a * (((t0 - t0) * (t0 - t0)) - ((t_1 - t0) * (t_1 - t0)))) *
+                 (1.0f / ((t0 - t0) - (t_1 - t0)));
 
         //C = Y1 - AX1^2 - BX1
         vec2 c = p_1 - a * ((t_1 - t0) * (t_1 - t0)) - b * (t_1 - t0);
@@ -256,33 +288,18 @@ class OSpline : public Curve {
 public:
     OSpline(std::vector<vec2> newCtrlPoints, vec3 newCurveColor) {
         curveColor = newCurveColor;
+        std::vector<vec2> transformedCordinates = std::vector<vec2>();
+        if (isMercator) transformedCordinates = toMercator(newCtrlPoints);
+        else transformedCordinates = toGlobe(newCtrlPoints);
+
 
         //Kontinens:
-        for (int i = 0; i < newCtrlPoints.size(); ++i) {
-            float x = newCtrlPoints[i].y;
-            x = degToRad(x);
-            float y = newCtrlPoints[i].x;
-            y = degToRad(y);
-
-            //uj:
-            y *= degToRad(90)/degToRad(85);
-            x -= degToRad(70);
-            x *= 2;
-
-            x = x;
-            y = logf(tanf((M_PI/4)+(y/2)));
-
-            float Ymax = logf(tanf((M_PI/4)+(degToRad(85)/2)));
-            float Xmax = degToRad(180);
-
-            x *= 10 / Xmax;
-            y *= 10 / Ymax;
-
-            wCtrlPoints.push_back(vec2(x, y));
+        for (int i = 0; i < transformedCordinates.size(); ++i) {
+            wCtrlPoints.push_back(vec2(transformedCordinates[i].x, transformedCordinates[i].y));
             ts.push_back((float) wCtrlPoints.size());
         }
         // TODO: plusz vonal
-        wCtrlPoints.insert(wCtrlPoints.begin(), wCtrlPoints[wCtrlPoints.size()-1]);
+        wCtrlPoints.insert(wCtrlPoints.begin(), wCtrlPoints[wCtrlPoints.size() - 1]);
         ts.push_back((float) wCtrlPoints.size());
         wCtrlPoints.push_back(wCtrlPoints[1]);
         ts.push_back((float) wCtrlPoints.size());
@@ -344,6 +361,13 @@ public:
 OSpline *eurazsiaSpline;
 OSpline *afrikaSpline;
 
+void setMercator(){
+    isMercator = !isMercator;
+    delete eurazsiaSpline;
+    delete afrikaSpline;
+    eurazsiaSpline = new OSpline(ctrlPtsEurazsia, vec3(0, 255, 0));
+    afrikaSpline = new OSpline(ctrlPtsAfrika, vec3(255, 255, 0));
+}
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -371,7 +395,7 @@ void onDisplay() {
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
     if (key == 'm') {
-        isMercator = !isMercator;
+        setMercator();
         glutPostRedisplay();
     }         // if d, invalidate display, i.e. redraw
 }
