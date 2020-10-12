@@ -291,15 +291,6 @@ public:
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), NULL); //attribute array, components...
     }
 
-    ~Curve() {
-        glDeleteBuffers(1, &vboCtrlPoints);
-        glDeleteVertexArrays(1, &vaoCtrlPoints);
-
-        glDeleteBuffers(1, &vboVectorisedCurve);
-        glDeleteVertexArrays(1, &vaoVectorisedCurve);
-
-    }
-
     virtual vec2 r(float t) = 0;
 
     virtual float tStart() = 0;
@@ -489,16 +480,6 @@ OSpline *eurazsiaSpline;
 OSpline *afrikaSpline;
 Path *path;
 
-void setMercator() {
-    isMercator = !isMercator;
-    delete eurazsiaSpline;
-    delete afrikaSpline;
-    delete path;
-    eurazsiaSpline = new OSpline(ctrlPtsEurazsia, colorEurazsia);
-    afrikaSpline = new OSpline(ctrlPtsAfrika, colorAfrika);
-    path = new Path();
-}
-
 // Initialization, create an OpenGL context
 void onInitialization() {
 
@@ -527,7 +508,7 @@ void onDisplay() {
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
     if (key == 'm') {
-        setMercator();
+        isMercator = !isMercator;
         glutPostRedisplay();
     }         // if d, invalidate display, i.e. redraw
 }
@@ -543,7 +524,7 @@ void onMouse(int button, int state, int pX,
     float cX = 2.0f * pX / windowWidth - 1;    // flip y axis
     float cY = 1.0f - 2.0f * pY / windowHeight;
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        path->AddControlPoint(cX, cY); // TODO: addCtrlPoint as model
+        path->AddControlPoint(cX, cY);
         glutPostRedisplay();
     }
 }
