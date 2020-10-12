@@ -34,7 +34,7 @@ int main(int argc, char * argv[]) {
     // OpenGL major and minor versions
     int majorVersion = 3, minorVersion = 3;
 #if !defined(__APPLE__)
-    glutInitContextVersion(majorVersion, minorVersion);
+    aglutInitContextVersion(majorVersion, minorVersion);
 #endif
     glutInitWindowSize(windowWidth, windowHeight);				// Application window is initially of resolution 600x600
     glutInitWindowPosition(100, 100);							// Relative location of the application window
