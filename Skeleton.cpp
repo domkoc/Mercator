@@ -285,13 +285,13 @@ public:
         for (float i = degToRad(-90); i < degToRad(90) + 0.02f; i += degToRad(170) / nTesselatedVertices) {
             vertexOcean.push_back(vec2(i, degToRad(-20)));
         }
-        for (float i = -10.0f; i < 10.0f + 0.02f; i+= 20.0f / nTesselatedVertices) {
+        for (float i = -10.0f; i < 10.0f + 0.02f; i += 20.0f / nTesselatedVertices) {
             vertexOcean.push_back(fromMercator(vec2(i, 10)));
         }
         for (float i = degToRad(90); i > degToRad(-90) - 0.02f; i -= degToRad(170) / nTesselatedVertices) {
             vertexOcean.push_back(vec2(i, degToRad(160)));
         }
-        for (float i = 10.0f; i > -10.0f - 0.02f; i-= 20.0f / nTesselatedVertices) {
+        for (float i = 10.0f; i > -10.0f - 0.02f; i -= 20.0f / nTesselatedVertices) {
             vertexOcean.push_back(fromMercator(vec2(i, -10)));
         }
 
@@ -501,20 +501,11 @@ public:
         curveColor = newCurveColor;
         pointColor = newCurveColor;
 
-        //wCtrlPoints.insert(wCtrlPoints.begin(), newCtrlPoints[newCtrlPoints.size() - 1]);
-        //ts.push_back((float) wCtrlPoints.size());
-
         //Kontinens:
         for (int i = 0; i < newCtrlPoints.size(); ++i) {
             wCtrlPoints.push_back(vec2(newCtrlPoints[i].x, newCtrlPoints[i].y));
             ts.push_back((float) wCtrlPoints.size());
         }
-        // TODO: plusz vonal
-        //wCtrlPoints.push_back(wCtrlPoints[0]);
-        //ts.push_back((float) wCtrlPoints.size());
-        //wCtrlPoints.push_back(wCtrlPoints[2]);
-        //ts.push_back(ts[2]);
-
 
         //Curve:
         glGenVertexArrays(1, &vaoVectorisedCurve);
@@ -542,29 +533,37 @@ public:
     }
 
     float tEnd() {
-        return ts[wCtrlPoints.size() - 1];
+        return ts[ts.size() - 1] + 1;
     }
 
     vec2 r(float t) {
-        for (int i = 0; i < wCtrlPoints.size(); i++) { // TODO: Vonal fix
-            if (ts[i] <= t && t <= ts[i + 1]) {
+        for (int i = 0; i < wCtrlPoints.size(); i++) {
+            if (ts[i] <= t && t <= ts[i + 1] && t <= ts[ts.size() - 1]) {
                 //𝒓𝑡 =(𝒔𝑖 𝑡(𝑡𝑖+1−𝑡)+𝒔𝑖+1 𝑡(𝑡−𝑡𝑖))/(𝑡𝑖+1−𝑡𝑖)
-                vec2 s0, s1;
                 if (i == 0) {
-                    s0 = S(wCtrlPoints[wCtrlPoints.size() - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[ts.size() - 1],
-                           ts[i], ts[i + 1], t);
+                    vec2 s0, s1;
+                    s0 = S(wCtrlPoints[wCtrlPoints.size() - 1], wCtrlPoints[i], wCtrlPoints[i + 1], 0, ts[i], ts[i + 1], t);
                     s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[i + 2], ts[i], ts[i + 1], ts[i + 2], t);
-                } else if (i == wCtrlPoints.size() - 2) {
+                    vec2 rt = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
+                    return rt;
+                } else if (i == (wCtrlPoints.size() - 2)) {
+                    vec2 s0, s1;
                     s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[i - 1], ts[i], ts[i + 1], t);
-                    s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[0], ts[i], ts[i + 1], ts[0], t);
-                } else if (i == wCtrlPoints.size() - 1) {
-                    s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[0], ts[i - 1], ts[i], ts[0], t);
-                    s1 = S(wCtrlPoints[i], wCtrlPoints[0], wCtrlPoints[1], ts[i], ts[0], ts[1], t);
+                    s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[0], ts[i], ts[i + 1], (ts[i + 1] + 1), t);
+                    vec2 rt = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
+                    return rt;
                 } else {
+                    vec2 s0, s1;
                     s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[i - 1], ts[i], ts[i + 1], t);
                     s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[i + 2], ts[i], ts[i + 1], ts[i + 2], t);
+                    vec2 rt = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
+                    return rt;
                 }
-                vec2 rt = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
+            } else if (t > ts[ts.size() - 1] && i == (wCtrlPoints.size() - 1)) {
+                vec2 s0, s1;
+                s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[0], ts[i - 1], ts[i], (ts[i] + 1), t);
+                s1 = S(wCtrlPoints[i], wCtrlPoints[0], wCtrlPoints[1], ts[i], (ts[i] + 1), (ts[i] + 2), t);
+                vec2 rt = (s0 * ((ts[i] + 1) - t) + s1 * (t - ts[i])) * (1.0f / ((ts[i] + 1) - ts[i]));
                 return rt;
             }
         }
@@ -652,7 +651,7 @@ void onDisplay() {
     eurazsiaSpline->Draw();
     afrikaSpline->Draw();
     for (int i = 0; i < circles.size(); i++) {
-        circles[i]->Draw();
+        //circles[i]->Draw();
     }
     path->Draw();
 
