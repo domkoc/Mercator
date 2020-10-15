@@ -139,6 +139,23 @@ vec2 fromMercator(vec2 transformedCoordinate) {
     return szelessegEsHosszusag;
 }
 
+vec3 toGlobe(vec2 szelessegEsHosszusag) {
+    vec3 transformedCoordinates = vec3();
+    float u = szelessegEsHosszusag.y;
+    float v = szelessegEsHosszusag.x;
+
+    u -= degToRad(70);
+    v = degToRad(90) - v;
+
+    float z = 10 * cosf(u) * sinf(v);
+    float x = 10 * sinf(u) * sinf(v);
+    float y = 10 * cosf(v);
+
+
+    transformedCoordinates = vec3(x, y, z);
+    return transformedCoordinates;
+}
+
 std::vector<vec2> toGlobe(std::vector<vec2> szelessegEsHosszusag) {
     std::vector<vec2> transformedCoordinates = std::vector<vec2>();
     //Kontinens:
@@ -149,9 +166,9 @@ std::vector<vec2> toGlobe(std::vector<vec2> szelessegEsHosszusag) {
         u -= degToRad(70);
         v = degToRad(90) - v;
 
-        float z = 10*cosf(u)*sinf(v);
-        float x = 10*sinf(u)*sinf(v);
-        float y = 10*cosf(v);
+        float z = 10 * cosf(u) * sinf(v);
+        float x = 10 * sinf(u) * sinf(v);
+        float y = 10 * cosf(v);
 
 
         transformedCoordinates.push_back(vec2(x, y));
@@ -163,10 +180,10 @@ vec2 fromGlobe(vec2 transformedCoordinates) {
     vec2 szelessegEsHosszusag = vec2();
     float x = transformedCoordinates.x;
     float y = transformedCoordinates.y;
-    float z = sqrtf((10*10)-(x*x)-(y*y));
+    float z = sqrtf((10 * 10) - (x * x) - (y * y));
 
-    float v = acosf(y/10);
-    float u = asinf(x/(10*sinf(v)));
+    float v = acosf(y / 10);
+    float u = asinf(x / (10 * sinf(v)));
 
     u += degToRad(70);
     v = degToRad(90) - v;
@@ -176,9 +193,9 @@ vec2 fromGlobe(vec2 transformedCoordinates) {
 }
 
 //képlet forrása: Wikipedia - Great-circle distance
-float distance(vec2 aPoint, vec2 bPoint){
+float distance(vec2 aPoint, vec2 bPoint) {
     float deltaL = abs(aPoint.y - bPoint.y);
-    float angle = acosf((sinf(aPoint.x)*sinf(bPoint.x))+(cosf(aPoint.x)*cosf(bPoint.x)*cosf(deltaL)));
+    float angle = acosf((sinf(aPoint.x) * sinf(bPoint.x)) + (cosf(aPoint.x) * cosf(bPoint.x) * cosf(deltaL)));
     return R * angle;
 }
 
@@ -192,9 +209,9 @@ std::vector<vec2> ctrlPtsAfrika = degToRad({
                                                    vec2(33, -5), vec2(17, -16), vec2(3, 6),
                                                    vec2(-35, 19), vec2(-3, 40), vec2(10, 53),
                                                    vec2(30, 33)});
-
+// TODO: Színek számítása:
 //Monokrómból:
-vec3 colorTenger(25.5, -25.5, 127.5);
+vec3 colorOcean(0, 0, 255);
 vec3 colorEurazsia(-51, 255, 0);
 vec3 colorAfrika(255, 127.5, 0);
 //példából:
@@ -249,12 +266,114 @@ public:
     }
 };
 
-
 Camera2D camera;
 GPUProgram gpuProgram; // vertex and fragment shaders
 
 const int nTesselatedVertices = 100; //görbe aproximálása
 
+class Ocean {
+    unsigned int vaoOcean, vboOcean;
+    vec3 oceanColor;
+    std::vector<vec2> vertexOcean;
+public:
+
+    Ocean() {
+        oceanColor = colorOcean;
+
+        vertexOcean.push_back(vec2(degToRad(0), degToRad(70)));
+
+        for (float i = degToRad(-90); i < degToRad(90) + 0.02f; i += degToRad(170) / nTesselatedVertices) {
+            vertexOcean.push_back(vec2(i, degToRad(-20)));
+        }
+        for (float i = -10.0f; i < 10.0f + 0.02f; i+= 20.0f / nTesselatedVertices) {
+            vertexOcean.push_back(fromMercator(vec2(i, 10)));
+        }
+        for (float i = degToRad(90); i > degToRad(-90) - 0.02f; i -= degToRad(170) / nTesselatedVertices) {
+            vertexOcean.push_back(vec2(i, degToRad(160)));
+        }
+        for (float i = 10.0f; i > -10.0f - 0.02f; i-= 20.0f / nTesselatedVertices) {
+            vertexOcean.push_back(fromMercator(vec2(i, -10)));
+        }
+
+        glGenVertexArrays(1, &vaoOcean);
+        glBindVertexArray(vaoOcean);
+
+        glGenBuffers(1, &vboOcean);
+        glBindBuffer(GL_ARRAY_BUFFER, vboOcean);
+
+        glEnableVertexAttribArray(0); //attribute array 0
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), NULL); //attribute array, components...
+        //color[i] = vec3(0.2f, 0.2f, 0.2f);
+
+    }
+
+    void Draw() {
+        mat4 VPTransform = camera.V() * camera.P();
+        gpuProgram.setUniform(VPTransform, "MVP");
+
+        std::vector<vec2> transformedCordinates = std::vector<vec2>();
+        if (isMercator) transformedCordinates = toMercator(vertexOcean);
+        else transformedCordinates = toGlobe(vertexOcean);
+
+        glBindVertexArray(vaoOcean);
+        glBindBuffer(GL_ARRAY_BUFFER, vboOcean);
+        glBufferData(GL_ARRAY_BUFFER, transformedCordinates.size() * sizeof(vec2), &transformedCordinates[0],
+                     GL_DYNAMIC_DRAW);
+        gpuProgram.setUniform(oceanColor, "color");
+        glDrawArrays(GL_TRIANGLE_FAN, 0, transformedCordinates.size());
+    }
+};
+
+class Circle {
+protected:
+    unsigned int vaoCircle, vboCircle;
+    vec3 circleColor;
+    std::vector<vec2> vertexCircle;
+public:
+
+    Circle(float angle, bool isLat) {
+        //szin beallitasa:
+        circleColor = colorCircle;
+
+        //vertex letrehozasa: x=Sz, y=h
+
+        if (!isLat) {
+            for (float i = degToRad(-20); i <= degToRad(160) + 0.02f; i += degToRad(180) / nTesselatedVertices) {
+                vertexCircle.push_back(vec2(angle, i));
+            }
+        } else {
+            for (float i = degToRad(-90); i < degToRad(90) + 0.02f; i += degToRad(170) / nTesselatedVertices) {
+                vertexCircle.push_back(vec2(i, angle));
+            }
+        }
+
+        //gpu-ra
+        glGenVertexArrays(1, &vaoCircle);
+        glBindVertexArray(vaoCircle);
+
+        glGenBuffers(1, &vboCircle);
+        glBindBuffer(GL_ARRAY_BUFFER, vboCircle);
+
+        glEnableVertexAttribArray(0); //attribute array 0
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), NULL); //attribute array, components...
+    }
+
+    void Draw() {
+        mat4 VPTransform = camera.V() * camera.P();
+        gpuProgram.setUniform(VPTransform, "MVP");
+
+        std::vector<vec2> transformedCordinates = std::vector<vec2>();
+        if (isMercator) transformedCordinates = toMercator(vertexCircle);
+        else transformedCordinates = toGlobe(vertexCircle);
+
+        glBindVertexArray(vaoCircle);
+        glBindBuffer(GL_ARRAY_BUFFER, vboCircle);
+        glBufferData(GL_ARRAY_BUFFER, transformedCordinates.size() * sizeof(vec2), &transformedCordinates[0],
+                     GL_DYNAMIC_DRAW);
+        gpuProgram.setUniform(circleColor, "color");
+        glDrawArrays(GL_LINE_STRIP, 0, transformedCordinates.size());
+    }
+};
 
 //Curve osztály forrása a grafika tananyag spline-okról szóló példakódja
 class Curve {
@@ -305,6 +424,7 @@ public:
         printf("Longitude: %lf, Latitude: %lf\n", radToDeg(point.y), radToDeg(point.x));
         if (wCtrlPoints.size() > 0) printf("Distance: %lf km\n", distance(point, wCtrlPoints[wCtrlPoints.size() - 1]));
         wCtrlPoints.push_back(point);
+        ts.push_back((float) wCtrlPoints.size());
     }
 
     void Draw() {
@@ -430,8 +550,9 @@ public:
             if (ts[i] <= t && t <= ts[i + 1]) {
                 //𝒓𝑡 =(𝒔𝑖 𝑡(𝑡𝑖+1−𝑡)+𝒔𝑖+1 𝑡(𝑡−𝑡𝑖))/(𝑡𝑖+1−𝑡𝑖)
                 vec2 s0, s1;
-                if (i == 0){
-                    s0 = S(wCtrlPoints[wCtrlPoints.size() - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[ts.size() - 1], ts[i], ts[i + 1], t);
+                if (i == 0) {
+                    s0 = S(wCtrlPoints[wCtrlPoints.size() - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[ts.size() - 1],
+                           ts[i], ts[i + 1], t);
                     s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[i + 2], ts[i], ts[i + 1], ts[i + 2], t);
                 } else if (i == wCtrlPoints.size() - 2) {
                     s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[i - 1], ts[i], ts[i + 1], t);
@@ -462,22 +583,44 @@ class Path : public Curve {
     }
 
 public:
-    float tStart() { return 0; };
+    float tStart() {
+        return ts[0];
+    }
 
-    float tEnd() { return 1; };
+    float tEnd() {
+        return ts[wCtrlPoints.size() - 1];
+    }
 
-    virtual vec2 r(float t) {
+    virtual vec2
+    r(float t) { // TODO: út pontosítása: https://math.etsu.edu/multicalc/prealpha/Chap3/Chap3-7/part4.htm (https://www.google.com/search?client=safari&rls=en&q=parametrized+equation+for+the+great+circle+passing+through&ie=UTF-8&oe=UTF-8)
         vec2 wPoint(0, 0);
-        for (int i = 0; i < wCtrlPoints.size(); i++) {
-            wPoint = wPoint + wCtrlPoints[i] * B(i, t);
+        for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
+            if (ts[i] <= t && t <= ts[i + 1]) {
+                float hossz1 = wCtrlPoints[i].y;
+                float szel1 = wCtrlPoints[i].x;
+                float hossz2 = wCtrlPoints[i + 1].y;
+                float szel2 = wCtrlPoints[i + 1].x;
+                vec3 p = vec3(cosf(hossz1) * cosf(szel1),
+                              sinf(hossz1) * cosf(szel1),
+                              sinf(szel1));
+                vec3 q = vec3(cosf(hossz2) * cosf(szel2),
+                              sinf(hossz2) * cosf(szel2),
+                              sinf(szel2));
+                vec3 w = q - (0.01f) * (p * q) * p;
+                vec3 qp = (10.0f / length(w)) * w;
+                vec3 g = cosf(t) * p + sin(t) * qp;
+                return fromGlobe(vec2(g.x, g.y));
+            }
         }
         return wPoint;
     }
 };
 
-//the virtual world: one object
+//the virtual world:
+Ocean *ocean;
 OSpline *eurazsiaSpline;
 OSpline *afrikaSpline;
+std::vector<Circle *> circles;
 Path *path;
 
 // Initialization, create an OpenGL context
@@ -485,8 +628,15 @@ void onInitialization() {
 
     glViewport(0, 0, windowWidth, windowHeight);
     glLineWidth(2.0f);
+    ocean = new Ocean();
     eurazsiaSpline = new OSpline(ctrlPtsEurazsia, colorEurazsia);
     afrikaSpline = new OSpline(ctrlPtsAfrika, colorAfrika);
+    for (int i = -90; i <= 90; i += 20) {
+        circles.push_back(new Circle(degToRad(i), false));
+    }
+    for (int i = -20; i <= 160; i += 20) {
+        circles.push_back(new Circle(degToRad(i), true));
+    }
     path = new Path();
 
     //create program for the GPU
@@ -498,8 +648,12 @@ void onDisplay() {
     glClearColor(0, 0, 0, 0); //background color
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //clear the screen
 
+    ocean->Draw();
     eurazsiaSpline->Draw();
     afrikaSpline->Draw();
+    for (int i = 0; i < circles.size(); i++) {
+        circles[i]->Draw();
+    }
     path->Draw();
 
     glutSwapBuffers();
