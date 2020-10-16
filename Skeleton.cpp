@@ -63,6 +63,7 @@ const char *const fragmentSource = R"(
 )";
 
 unsigned int R = 6371;
+unsigned int r = 10;
 
 float radToDeg(float rad) {
     return rad * 180 / M_PI;
@@ -147,9 +148,9 @@ vec3 toGlobe(vec2 szelessegEsHosszusag) {
     u -= degToRad(70);
     v = degToRad(90) - v;
 
-    float z = 10 * cosf(u) * sinf(v);
-    float x = 10 * sinf(u) * sinf(v);
-    float y = 10 * cosf(v);
+    float z = r * cosf(u) * sinf(v);
+    float x = r * sinf(u) * sinf(v);
+    float y = r * cosf(v);
 
 
     transformedCoordinates = vec3(x, y, z);
@@ -166,9 +167,9 @@ std::vector<vec2> toGlobe(std::vector<vec2> szelessegEsHosszusag) {
         u -= degToRad(70);
         v = degToRad(90) - v;
 
-        float z = 10 * cosf(u) * sinf(v);
-        float x = 10 * sinf(u) * sinf(v);
-        float y = 10 * cosf(v);
+        float z = r * cosf(u) * sinf(v);
+        float x = r * sinf(u) * sinf(v);
+        float y = r * cosf(v);
 
 
         transformedCoordinates.push_back(vec2(x, y));
@@ -182,8 +183,8 @@ vec2 fromGlobe(vec2 transformedCoordinates) {
     float y = transformedCoordinates.y;
     float z = sqrtf((10 * 10) - (x * x) - (y * y));
 
-    float v = acosf(y / 10);
-    float u = asinf(x / (10 * sinf(v)));
+    float v = acosf(y / r);
+    float u = asinf(x / (r * sinf(v)));
 
     u += degToRad(70);
     v = degToRad(90) - v;
@@ -209,30 +210,14 @@ std::vector<vec2> ctrlPtsAfrika = degToRad({
                                                    vec2(33, -5), vec2(17, -16), vec2(3, 6),
                                                    vec2(-35, 19), vec2(-3, 40), vec2(10, 53),
                                                    vec2(30, 33)});
-// TODO: Színek számítása:
 //Monokrómból:
-vec3 colorOcean(0, 0, 255);
-vec3 colorEurazsia(-51, 255, 0);
-vec3 colorAfrika(255, 127.5, 0);
+vec3 colorOcean(0.15f, 0.0f, 0.9f);
+vec3 colorEurazsia(0.3f, 1.0f, 0.0f);
+vec3 colorAfrika(1.0f, 0.8f, 0.0f);
 //példából:
-vec3 colorCircle(255, 255, 255);
-vec3 colorPath(255, 255, 0);
-vec3 colorPoint(255, 0, 0);
-
-struct mercatorParameters {
-    float xRadMax = degToRad(160);
-    float xRadMin = degToRad(-20);
-    float yRadMax = degToRad(85);
-    float yRadMin = degToRad(-85);
-
-    float xMax = xRadMax;
-    float xMin = xRadMin;
-    float yMax = logf(tanf((M_PI / 4) + (yRadMax / 2)));
-    float yMin = logf(tanf((M_PI / 4) + (yRadMin / 2)));
-
-    float xScale = 10.0f / xMax;//xMin - (((abs(xMin) + abs(xMax)) / 2.0f) - abs(xMin));
-    float yScale = 10.0f / yMax;
-} mercatorParameters;
+vec3 colorCircle(1.0f, 1.0f, 1.0f);
+vec3 colorPath(1.0f, 1.0f, 0.0f);
+vec3 colorPoint(1.0f, 0.0f, 0.0f);
 
 //2D Camera
 class Camera2D {
@@ -303,8 +288,6 @@ public:
 
         glEnableVertexAttribArray(0); //attribute array 0
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), NULL); //attribute array, components...
-        //color[i] = vec3(0.2f, 0.2f, 0.2f);
-
     }
 
     void Draw() {
@@ -371,13 +354,13 @@ public:
         glBufferData(GL_ARRAY_BUFFER, transformedCordinates.size() * sizeof(vec2), &transformedCordinates[0],
                      GL_DYNAMIC_DRAW);
         gpuProgram.setUniform(circleColor, "color");
+        glLineWidth(2.0f);
         glDrawArrays(GL_LINE_STRIP, 0, transformedCordinates.size());
     }
 };
 
-//Curve osztály forrása a grafika tananyag spline-okról szóló példakódja
+//forrás: Curve osztály forrása a grafika tananyag spline-okról szóló példakódja
 class Curve {
-
 protected:
     std::vector<vec2> wCtrlPoints; //coordinates of control points
     std::vector<float> ts; //knots
@@ -443,7 +426,7 @@ public:
             glBufferData(GL_ARRAY_BUFFER, transformedPointCordinates.size() * sizeof(vec2),
                          &transformedPointCordinates[0], GL_DYNAMIC_DRAW);
             gpuProgram.setUniform(pointColor, "color");
-            glPointSize(10.0f);
+            glPointSize(15.0f);
             glDrawArrays(GL_POINTS, 0, transformedPointCordinates.size());
         }
 
@@ -452,8 +435,9 @@ public:
         if (wCtrlPoints.size() > 1) {
             std::vector<vec2> vertexData;
             bool first = true;
-            for (int i = 0; i < nTesselatedVertices; ++i) { //tesselate
-                float tNormalized = (float) i / (nTesselatedVertices - 1);
+            float localTesselation = nTesselatedVertices*wCtrlPoints.size();
+            for (int i = 0; i < localTesselation; ++i) { //tesselate
+                float tNormalized = (float) i / (localTesselation - 1);
                 float t = tStart() + (tEnd() - tStart()) * tNormalized;
                 vec2 wVertex = r(t);
                 vertexData.push_back(wVertex);
@@ -470,8 +454,8 @@ public:
             glBufferData(GL_ARRAY_BUFFER, transformedCordinates.size() * sizeof(vec2), &transformedCordinates[0],
                          GL_DYNAMIC_DRAW);
             gpuProgram.setUniform(curveColor, "color");
-            glLineWidth(2.0f);
-            glDrawArrays(GL_LINE_STRIP, 0, nTesselatedVertices);
+            glLineWidth(5.0f);
+            glDrawArrays(GL_LINE_STRIP, 0, localTesselation);
         }
     }
 };
@@ -479,19 +463,14 @@ public:
 class OSpline : public Curve {
 
     vec2 S(vec2 p_1, vec2 p0, vec2 p1, float t_1, float t0, float t1, float t) {
-
-        //A = [(Y2-Y1)(X1-X3) + (Y3-Y1)(X2-X1)]/[(X1-X3)(X2^2-X1^2) + (X2-X1)(X3^2-X1^2)]
         vec2 a = ((p0 - p_1) * ((t_1 - t0) - (t1 - t0)) + (p1 - p_1) * ((t0 - t0) - (t_1 - t0))) *
                  (1.0f / (((t_1 - t0) - (t1 - t0)) * (((t0 - t0) * (t0 - t0)) - ((t_1 - t0) * (t_1 - t0))) +
                           ((t0 - t0) - (t_1 - t0)) * (((t1 - t0) * (t1 - t0)) - ((t_1 - t0) * (t_1 - t0)))));
 
-        //B = [(Y2 - Y1) - A(X2^2 - X1^2)] / (X2-X1)
         vec2 b = ((p0 - p_1) - a * (((t0 - t0) * (t0 - t0)) - ((t_1 - t0) * (t_1 - t0)))) *
                  (1.0f / ((t0 - t0) - (t_1 - t0)));
 
-        //C = Y1 - AX1^2 - BX1
         vec2 c = p_1 - a * ((t_1 - t0) * (t_1 - t0)) - b * (t_1 - t0);
-
 
         return (a * (t - t0) + b) * (t - t0) + c;
     }
@@ -539,14 +518,14 @@ public:
     vec2 r(float t) {
         for (int i = 0; i < wCtrlPoints.size(); i++) {
             if (ts[i] <= t && t <= ts[i + 1] && t <= ts[ts.size() - 1]) {
-                //𝒓𝑡 =(𝒔𝑖 𝑡(𝑡𝑖+1−𝑡)+𝒔𝑖+1 𝑡(𝑡−𝑡𝑖))/(𝑡𝑖+1−𝑡𝑖)
-                if (i == 0) {
+                if (i == 0) {//elsö pont
                     vec2 s0, s1;
-                    s0 = S(wCtrlPoints[wCtrlPoints.size() - 1], wCtrlPoints[i], wCtrlPoints[i + 1], 0, ts[i], ts[i + 1], t);
+                    s0 = S(wCtrlPoints[wCtrlPoints.size() - 1], wCtrlPoints[i], wCtrlPoints[i + 1], 0, ts[i], ts[i + 1],
+                           t);
                     s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[i + 2], ts[i], ts[i + 1], ts[i + 2], t);
                     vec2 rt = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
                     return rt;
-                } else if (i == (wCtrlPoints.size() - 2)) {
+                } else if (i == (wCtrlPoints.size() - 2)) {//utolsó előtti pont
                     vec2 s0, s1;
                     s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[i + 1], ts[i - 1], ts[i], ts[i + 1], t);
                     s1 = S(wCtrlPoints[i], wCtrlPoints[i + 1], wCtrlPoints[0], ts[i], ts[i + 1], (ts[i + 1] + 1), t);
@@ -559,7 +538,7 @@ public:
                     vec2 rt = (s0 * (ts[i + 1] - t) + s1 * (t - ts[i])) * (1.0f / (ts[i + 1] - ts[i]));
                     return rt;
                 }
-            } else if (t > ts[ts.size() - 1] && i == (wCtrlPoints.size() - 1)) {
+            } else if (t > ts[ts.size() - 1] && i == (wCtrlPoints.size() - 1)) {//utolsó pont utáni görbe
                 vec2 s0, s1;
                 s0 = S(wCtrlPoints[i - 1], wCtrlPoints[i], wCtrlPoints[0], ts[i - 1], ts[i], (ts[i] + 1), t);
                 s1 = S(wCtrlPoints[i], wCtrlPoints[0], wCtrlPoints[1], ts[i], (ts[i] + 1), (ts[i] + 2), t);
@@ -572,13 +551,18 @@ public:
 };
 
 class Path : public Curve {
-    float B(int i, float t) {
-        int n = wCtrlPoints.size() - 1; //n deg polynomial = n+1 pts!
-        float choose = 1;
-        for (int j = 1; j < i; j++) {
-            choose = choose * (float) (n - j + 1) / j;
-        }
-        return choose * pow(t, i) * pow(1 - t, n - i);
+    vec2 Plane(vec2 p0, vec2 p1, float t0, float t) {
+        t = t - t0;
+        //konstansok:
+        float d = acos(sin(p0.x) * sin(p1.x) + cos(p0.x) * cos(p1.x) * cos(p0.y - p1.y));
+        float A = sin((1 - t) * d) / sin(d);
+        float B = sin(t * d) / sin(d);
+        //koordinatak:
+        float x = A * cos(p0.x) * cos(p0.y) + B * cos(p1.x) * cos(p1.y);
+        float y = A * cos(p0.x) * sin(p0.y) + B * cos(p1.x) * sin(p1.y);
+        float z = A * sin(p0.x) + B * sin(p1.x);
+        //vissza sz,h-ban:
+        return vec2(atan2(z, sqrt((x*x) + (y*y))), atan2(y,x));
     }
 
 public:
@@ -590,25 +574,11 @@ public:
         return ts[wCtrlPoints.size() - 1];
     }
 
-    virtual vec2
-    r(float t) { // TODO: út pontosítása: https://math.etsu.edu/multicalc/prealpha/Chap3/Chap3-7/part4.htm (https://www.google.com/search?client=safari&rls=en&q=parametrized+equation+for+the+great+circle+passing+through&ie=UTF-8&oe=UTF-8)
+    virtual vec2 r(float t) {
         vec2 wPoint(0, 0);
         for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
             if (ts[i] <= t && t <= ts[i + 1]) {
-                float hossz1 = wCtrlPoints[i].y;
-                float szel1 = wCtrlPoints[i].x;
-                float hossz2 = wCtrlPoints[i + 1].y;
-                float szel2 = wCtrlPoints[i + 1].x;
-                vec3 p = vec3(cosf(hossz1) * cosf(szel1),
-                              sinf(hossz1) * cosf(szel1),
-                              sinf(szel1));
-                vec3 q = vec3(cosf(hossz2) * cosf(szel2),
-                              sinf(hossz2) * cosf(szel2),
-                              sinf(szel2));
-                vec3 w = q - (0.01f) * (p * q) * p;
-                vec3 qp = (10.0f / length(w)) * w;
-                vec3 g = cosf(t) * p + sin(t) * qp;
-                return fromGlobe(vec2(g.x, g.y));
+                return Plane(wCtrlPoints[i], wCtrlPoints[i+1],ts[i], t);
             }
         }
         return wPoint;
@@ -651,7 +621,7 @@ void onDisplay() {
     eurazsiaSpline->Draw();
     afrikaSpline->Draw();
     for (int i = 0; i < circles.size(); i++) {
-        //circles[i]->Draw();
+        circles[i]->Draw();
     }
     path->Draw();
 
@@ -663,7 +633,7 @@ void onKeyboard(unsigned char key, int pX, int pY) {
     if (key == 'm') {
         isMercator = !isMercator;
         glutPostRedisplay();
-    }         // if d, invalidate display, i.e. redraw
+    }
 }
 
 // Key of ASCII code released
@@ -671,8 +641,7 @@ void onKeyboardUp(unsigned char key, int pX, int pY) {
 }
 
 // Mouse click event
-void onMouse(int button, int state, int pX,
-             int pY) { // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
+void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
     // Convert to normalized device space
     float cX = 2.0f * pX / windowWidth - 1;    // flip y axis
     float cY = 1.0f - 2.0f * pY / windowHeight;
